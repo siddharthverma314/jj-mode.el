@@ -65,9 +65,7 @@
                    (and (= (nth 1 version) minor)
                         (>= (nth 2 version) patch))))))))
 
-(defcustom jj-log-sections-hook '(jj-log-insert-logs
-                                  jj-log-insert-status
-                                  jj-log-insert-diff)
+(defcustom jj-log-sections-hook '(jj-log-insert-logs jj-log-insert-diff)
   "Hook run to insert sections in the log buffer."
   :type 'hook
   :group 'jj)
