@@ -701,7 +701,7 @@ This procedure produces valid graph rendering"
 
 (defun jj-log-insert-diff ()
   "Insert jj diff with hunks into current buffer."
-  (let ((diff-output (jj--run-command-color "diff" "--git")))
+  (let ((diff-output (jj--run-command "diff" "--git")))
     (when (and diff-output (not (string-empty-p diff-output)))
       (magit-insert-section (jj-diff-section)
         (magit-insert-heading "Working Copy Changes")
@@ -744,8 +744,7 @@ This procedure produces valid graph rendering"
   "Insert a file section with its hunks."
   (magit-insert-section file-section (jj-file-section)
     (oset file-section file file)
-    (insert (propertize (concat "modified   " file "\n")
-                        'face 'magit-filename))
+    (insert (jj--add-face (concat "modified   " file "\n") 'magit-diff-file-heading))
     ;; Process the lines to find and insert hunks
     (let ((remaining-lines (nreverse lines))
           hunk-lines
@@ -781,19 +780,18 @@ This procedure produces valid graph rendering"
             (oset hunk-section file file)
             (oset hunk-section header header)
             ;; Insert the hunk header
-            (insert (propertize header 'face 'magit-diff-hunk-heading))
-            (when (and context (not (string-empty-p context)))
-              (insert (propertize context 'face 'magit-diff-hunk-heading)))
-            (insert "\n")
+            (let ((header (concat header context "\n")))
+              (insert (jj--add-face header 'magit-diff-hunk-heading)))
             ;; Insert the hunk content
             (dolist (line (cdr lines))
+              (setq line (concat line "\n"))
               (cond
                ((string-prefix-p "+" line)
-                (insert (propertize line 'face 'magit-diff-added) "\n"))
+                (insert (jj--add-face line 'magit-diff-added)))
                ((string-prefix-p "-" line)
-                (insert (propertize line 'face 'magit-diff-removed) "\n"))
+                (insert (jj--add-face line 'magit-diff-removed)))
                (t
-                (insert (propertize line 'face 'magit-diff-context) "\n"))))))))))
+                (insert (jj--add-face line 'magit-diff-context)))))))))))
 
 ;;;###autoload
 (cl-defun jj-log (&key revset expand-entries)
