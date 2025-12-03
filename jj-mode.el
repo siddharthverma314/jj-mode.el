@@ -15,6 +15,7 @@
 
 (require 'magit)
 (require 'magit-section)
+(require 'magit-diff)
 (require 'transient)
 (require 'ansi-color)
 (require 'cl-lib)
@@ -525,11 +526,15 @@ Returns remote name or nil if empty."
    (prefix :initarg :prefix)))
 (defclass jj-diff-section (magit-section) ())
 (defclass jj-file-section (magit-section)
-  ((file :initarg :file)))
-(defclass jj-hunk-section (magit-section)
+  ((file :initarg :file)
+   (heading-highlight-face :initform 'magit-diff-file-heading-highlight)
+   (heading-selection-face :initform 'magit-diff-file-heading-selection)))
+(defclass jj-hunk-section (magit-hunk-section)
   ((file :initarg :file)
    (start :initarg :hunk-start)
-   (header :initarg :header)))
+   (header :initarg :header)
+   (heading-highlight-face :initform 'magit-diff-hunk-heading-highlight)
+   (heading-selection-face :initform 'magit-diff-hunk-heading-selection)))
 
 
 (defun jj--format-short-diff-stat (diff-stat)
@@ -696,8 +701,6 @@ This procedure produces valid graph rendering"
 
 (cl-defmethod magit-section-highlight ((section jj-log-graph-section))
   "No-op highlight method to disable highlighting for Log Graph section.")
-(cl-defmethod magit-section-highlight ((section jj-hunk-section))
-  "No-op highlight method to disable highlighting for diff hunk section.")
 
 (defun jj-log-insert-logs ()
   "Insert jj log graph into current buffer."
@@ -767,31 +770,31 @@ This procedure produces valid graph rendering"
   (magit-insert-section file-section
     (jj-file-section)
     (oset file-section file file)
-    (insert (propertize (concat "modified   " file "\n")
-                        'face 'magit-filename))
-    ;; Process the lines to find and insert hunks
-    (let ((remaining-lines (nreverse lines))
-          hunk-lines
-          in-hunk)
-      (dolist (line remaining-lines)
-        (cond
-         ;; Start of a hunk
-         ((string-match "^@@.*@@" line)
-          ;; Insert previous hunk if any
-          (when in-hunk
-            (jj--insert-hunk-lines file (nreverse hunk-lines)))
-          ;; Start new hunk
-          (setq hunk-lines (list line)
-                in-hunk t))
-         ;; Skip header lines
-         ((string-match "^\\(diff --git\\|index\\|---\\|\\+\\+\\+\\|new file\\|deleted file\\)" line)
-          nil)
-         ;; Accumulate hunk lines
-         (in-hunk
-          (push line hunk-lines))))
-      ;; Insert final hunk if any
-      (when in-hunk
-        (jj--insert-hunk-lines file (nreverse hunk-lines))))))
+    (magit-insert-heading (jj--add-face (concat "modified   " file "\n") 'magit-diff-file-heading))
+    (magit-insert-section-body
+     ;; Process the lines to find and insert hunks
+     (let ((remaining-lines (nreverse lines))
+           hunk-lines
+           in-hunk)
+       (dolist (line remaining-lines)
+         (cond
+          ;; Start of a hunk
+          ((string-match "^@@ .*@@" line)
+           ;; Insert previous hunk if any
+           (when in-hunk
+             (jj--insert-hunk-lines file (nreverse hunk-lines)))
+           ;; Start new hunk
+           (setq hunk-lines (list line)
+                 in-hunk t))
+          ;; Skip header lines
+          ((string-match "^\\(diff --git\\|index\\|---\\|\\+\\+\\+\\|new file\\ |deleted file\\)" line)
+           nil)
+          ;; Accumulate hunk lines
+          (in-hunk
+           (push line hunk-lines))))
+       ;; Insert final hunk if any
+       (when in-hunk
+         (jj--insert-hunk-lines file (nreverse hunk-lines)))))))
 
 (defun jj--insert-hunk-lines (file lines)
   "Insert a hunk section from LINES."
@@ -805,21 +808,11 @@ This procedure produces valid graph rendering"
             (oset hunk-section file file)
             (oset hunk-section header header)
             ;; Insert the hunk header
-            (insert (propertize header 'face 'magit-diff-hunk-heading))
-            (when (and context (not (string-empty-p context)))
-              (insert (propertize context 'face 'magit-diff-hunk-heading)))
-            (insert "\n")
+            (magit-insert-heading (jj--add-face (concat header context "\n") 'magit-diff-hunk-heading))
             ;; Insert the hunk content
-            (dolist (line (cdr lines))
-              (let ((line-start (point))
-                    (face (cond
-                           ((string-prefix-p "+" line) 'magit-diff-added)
-                           ((string-prefix-p "-" line) 'magit-diff-removed)
-                           (t 'magit-diff-context))))
-                (insert line "\n")
-                (font-lock-append-text-property line-start (point) 'font-lock-face face)
-                (when (not (string-empty-p line))
-                  (font-lock-append-text-property line-start (1+ line-start) 'font-lock-face 'fixed-pitch))))))))))
+            (magit-insert-section-body
+              (dolist (line (cdr lines))
+                (insert line "\n")))))))))
 
 ;;;###autoload
 (cl-defun jj-log (&key revset expand-entries)
@@ -830,8 +823,7 @@ This procedure produces valid graph rendering"
          (buffer (get-buffer-create buffer-name)))
     (with-current-buffer buffer
       (let ((inhibit-read-only t)
-            (default-directory repo-root)
-            (inhibit-modification-hooks t))
+            (default-directory repo-root))
         (erase-buffer)
         (jj-mode)
         (funcall jj-log-display-function buffer)
