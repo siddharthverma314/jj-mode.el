@@ -781,14 +781,11 @@ This procedure produces valid graph rendering"
             (oset hunk-section file file)
             (oset hunk-section header header)
             ;; Insert the hunk header
-            (magit-insert-heading
-              (jj--add-face (concat header context "\n") 'magit-diff-hunk-heading))
+            (magit-insert-heading header context)
             ;; Insert the hunk content
             (magit-insert-section-body
               (dolist (line (cdr lines))
-                (insert line "\n")))
-            (oset hunk-section end (1- (point)))
-            (magit-section-update-paint hunk-section nil)))))))
+                (insert line "\n")))))))))
 
 ;;;###autoload
 (cl-defun jj-log (&key revset expand-entries)
@@ -799,8 +796,7 @@ This procedure produces valid graph rendering"
          (buffer (get-buffer-create buffer-name)))
     (with-current-buffer buffer
       (let ((inhibit-read-only t)
-            (default-directory repo-root)
-            (inhibit-modification-hooks t))
+            (default-directory repo-root))
         (erase-buffer)
         (jj-mode)
         (funcall jj-log-display-function buffer)
