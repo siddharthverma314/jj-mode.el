@@ -509,7 +509,7 @@ When ALL-REMOTES is non-nil, include remote bookmarks formatted as NAME@REMOTE."
 (defclass jj-diff-section (magit-section) ())
 (defclass jj-file-section (magit-section)
   ((file :initarg :file)))
-(defclass jj-hunk-section (magit-section)
+(defclass jj-hunk-section (magit-hunk-section)
   ((file :initarg :file)
    (start :initarg :hunk-start)
    (header :initarg :header)))
@@ -744,30 +744,31 @@ This procedure produces valid graph rendering"
   "Insert a file section with its hunks."
   (magit-insert-section file-section (jj-file-section)
     (oset file-section file file)
-    (insert (jj--add-face (concat "modified   " file "\n") 'magit-diff-file-heading))
-    ;; Process the lines to find and insert hunks
-    (let ((remaining-lines (nreverse lines))
-          hunk-lines
-          in-hunk)
-      (dolist (line remaining-lines)
-        (cond
-         ;; Start of a hunk
-         ((string-match "^@@.*@@" line)
-          ;; Insert previous hunk if any
-          (when in-hunk
-            (jj--insert-hunk-lines file (nreverse hunk-lines)))
-          ;; Start new hunk
-          (setq hunk-lines (list line)
-                in-hunk t))
-         ;; Skip header lines
-         ((string-match "^\\(diff --git\\|index\\|---\\|\\+\\+\\+\\|new file\\|deleted file\\)" line)
-          nil)
-         ;; Accumulate hunk lines
-         (in-hunk
-          (push line hunk-lines))))
-      ;; Insert final hunk if any
-      (when in-hunk
-        (jj--insert-hunk-lines file (nreverse hunk-lines))))))
+    (magit-insert-heading (jj--add-face (concat "modified   " file "\n") 'magit-diff-file-heading))
+    (magit-insert-section-body
+     ;; Process the lines to find and insert hunks
+     (let ((remaining-lines (nreverse lines))
+           hunk-lines
+           in-hunk)
+       (dolist (line remaining-lines)
+         (cond
+          ;; Start of a hunk
+          ((string-match "^@@ .*@@" line)
+           ;; Insert previous hunk if any
+           (when in-hunk
+             (jj--insert-hunk-lines file (nreverse hunk-lines)))
+           ;; Start new hunk
+           (setq hunk-lines (list line)
+                 in-hunk t))
+          ;; Skip header lines
+          ((string-match "^\\(diff --git\\|index\\|---\\|\\+\\+\\+\\|new file\\ |deleted file\\)" line)
+           nil)
+          ;; Accumulate hunk lines
+          (in-hunk
+           (push line hunk-lines))))
+       ;; Insert final hunk if any
+       (when in-hunk
+         (jj--insert-hunk-lines file (nreverse hunk-lines)))))))
 
 (defun jj--insert-hunk-lines (file lines)
   "Insert a hunk section from LINES."
@@ -780,18 +781,14 @@ This procedure produces valid graph rendering"
             (oset hunk-section file file)
             (oset hunk-section header header)
             ;; Insert the hunk header
-            (let ((header (concat header context "\n")))
-              (insert (jj--add-face header 'magit-diff-hunk-heading)))
+            (magit-insert-heading
+              (jj--add-face (concat header context "\n") 'magit-diff-hunk-heading))
             ;; Insert the hunk content
-            (dolist (line (cdr lines))
-              (setq line (concat line "\n"))
-              (cond
-               ((string-prefix-p "+" line)
-                (insert (jj--add-face line 'magit-diff-added)))
-               ((string-prefix-p "-" line)
-                (insert (jj--add-face line 'magit-diff-removed)))
-               (t
-                (insert (jj--add-face line 'magit-diff-context)))))))))))
+            (magit-insert-section-body
+              (dolist (line (cdr lines))
+                (insert line "\n")))
+            (oset hunk-section end (1- (point)))
+            (magit-section-update-paint hunk-section nil)))))))
 
 ;;;###autoload
 (cl-defun jj-log (&key revset expand-entries)
