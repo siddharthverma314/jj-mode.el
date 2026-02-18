@@ -55,16 +55,6 @@
                                 (string-to-number (match-string 3 version-string)))))))
   jj--version)
 
-(defun jj--version>= (major minor patch)
-  "Check if jj version is >= MAJOR.MINOR.PATCH."
-  (let ((version (jj--get-version)))
-    (when version
-      (or (> (nth 0 version) major)
-          (and (= (nth 0 version) major)
-               (or (> (nth 1 version) minor)
-                   (and (= (nth 1 version) minor)
-                        (>= (nth 2 version) patch))))))))
-
 (defcustom jj-log-sections-hook '(jj-log-insert-logs jj-log-insert-diff)
   "Hook run to insert sections in the log buffer."
   :type 'hook
@@ -217,20 +207,10 @@ if(self.root(),
       if(self.conflict(), 'conflicted'),
     ),
     separate('\x1e',
-      "
-   ;; see https://github.com/jj-vcs/jj/blob/f4be9a21e91620a39eb1ac4c0568e7c31ea04852/CHANGELOG.md?plain=1#L86
-   (if (jj--version>= 0 37 0)
-       "format_short_change_id_with_change_offset(self),"
-     "format_short_change_id_with_hidden_and_divergent_info(self),")
-   "
+      format_short_change_id_with_change_offset(self),
       format_short_signature_oneline(self.author()),
       concat(' ', separate(' ', self.bookmarks(), self.tags(), self.working_copies())),
-      "
-   ;; see https://github.com/jj-vcs/jj/blob/f4be9a21e91620a39eb1ac4c0568e7c31ea04852/CHANGELOG.md?plain=1#105
-   (if (jj--version>= 0 37 0)
-       "if(self.contained_in('first_parent(@)'), label('git_head', 'git_head()'), ' '),"
-     "if(self.git_head(), label('git_head', 'git_head()'), ' '),")
-   "
+      if(self.submitted_change_number() > 0, 'cl/' ++ stringify(label('ref', self.submitted_change_number())), ' '),
       if(self.conflict(), label('conflict', 'conflict'), ' '),
       if(config('ui.show-cryptographic-signatures').as_boolean(),
         format_short_cryptographic_signature(self.signature()),
